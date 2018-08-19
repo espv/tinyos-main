@@ -49,6 +49,7 @@ configuration Msp430Uart0P {
 }
 
 implementation {
+  // Not in use by telosb
   components new Msp430UartP() as UartP;
   Resource = UartP.Resource;
   ResourceConfigure = UartP.ResourceConfigure;

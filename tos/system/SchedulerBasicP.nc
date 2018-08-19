@@ -50,11 +50,13 @@
  */
 
 #include <hardware.h>
+#include <stdio.h>
 
 module SchedulerBasicP @safe() {
   provides interface Scheduler;
   provides interface TaskBasic[uint8_t id];
   uses interface McuSleep;
+  uses interface EventFramework;
 }
 implementation
 {
@@ -77,6 +79,7 @@ implementation
   // mark the task as not in the queue
   inline uint8_t popTask()
   {
+    //call EventFramework.post_event(1, "SRV Start", "SchedulerBasicP.popTask", "");
     if( m_head != NO_TASK )
     {
       uint8_t id = m_head;
@@ -86,10 +89,12 @@ implementation
 	m_tail = NO_TASK;
       }
       m_next[id] = NO_TASK;
+      //call EventFramework.post_event(1, "SRV Stop", "SchedulerBasicP.popTask", "");
       return id;
     }
     else
     {
+      //call EventFramework.post_event(1, "SRV Stop", "SchedulerBasicP.popTask", "NO_TASK");
       return NO_TASK;
     }
   }
@@ -101,6 +106,7 @@ implementation
 
   bool pushTask( uint8_t id )
   {
+    //call EventFramework.post_event(1, "Pushing task", "SchedulerBasicP.pushTask", "");
     if( !isWaiting(id) )
     {
       if( m_head == NO_TASK )
@@ -113,10 +119,12 @@ implementation
 	m_next[m_tail] = id;
 	m_tail = id;
       }
+      //call EventFramework.post_event(1, "SRV Stop", "SchedulerBasicP.pushTask", "");
       return TRUE;
     }
     else
     {
+      //call EventFramework.post_event(1, "SRV Stop", "SchedulerBasicP.pushTask", "");
       return FALSE;
     }
   }
@@ -134,32 +142,64 @@ implementation
   command bool Scheduler.runNextTask()
   {
     uint8_t nextTask;
+    //call EventFramework.post_event(1, "SRV Start", "SchedulerBasicP.runNextTask", "");
     atomic
     {
       nextTask = popTask();
       if( nextTask == NO_TASK )
       {
+        //call EventFramework.post_event(1, "SRV Stop", "SchedulerBasicP.runNextTask", "");
 	return FALSE;
       }
     }
     signal TaskBasic.runTask[nextTask]();
+    //call EventFramework.post_event(1, "SRV Stop", "SchedulerBasicP.runNextTask", "");
     return TRUE;
   }
 
+  //uint32_t cnt = 0;
+  uint8_t scheduler_taskloop_addr;
   command void Scheduler.taskLoop()
   {
+    // LOOPSTART taskloop
+    call EventFramework.trace_event(33);
     for (;;)
     {
       uint8_t nextTask;
 
       atomic
       {
-	while ((nextTask = popTask()) == NO_TASK)
-	{
-	  call McuSleep.sleep();
-	}
+          uint8_t no_task = (uint8_t)((nextTask = popTask()) == NO_TASK);
+          /*if (no_task)
+            call EventFramework.trace_event(35); // QUEUECOND - LOOPSTART
+          else
+            call EventFramework.trace_event(34); // QUEUECOND*/
+        	while (no_task)
+        	{
+            // If we don't sleep, we can't be pre-empted. The preemption only works if we go to sleep.
+            // But then how do we preempt for readDonePayload_ack to sendDone? Do we temporarily sleep there?
+            //printf("b\n");
+            //cnt = 0;
+            //while (cnt++ < 100000)
+            //  call EventFramework.trace_event(10);
+            //printf("Sleeping\n");
+            //printf("Waking\n");
+            //call EventFramework.trace_event(96);
+            call McuSleep.sleep();
+            //call EventFramework.trace_event(97);
+            //printf("a\n");
+            no_task = (uint8_t)((nextTask = popTask()) == NO_TASK);
+            /*if (no_task)
+              call EventFramework.trace_event(36); // WAKEUP - QUEUECOND - LOOPRSTART
+            else
+              call EventFramework.trace_event(37); // WAKEUP - QUEUECOND - LOOPSTOP*/
+          }
       }
+      
+      call EventFramework.trace_event(39); // CTXSW DEQUEUE SRVQUEUE task_queue
       signal TaskBasic.runTask[nextTask]();
+      //call EventFramework.post_event(4, "Loop Stop", "SchedulerBasicP.taskLoop", "");
+      call EventFramework.trace_event(38); // LOOPRSTART
     }
   }
 
@@ -169,6 +209,8 @@ implementation
   
   async command error_t TaskBasic.postTask[uint8_t id]()
   {
+    // Task enqueuing, currently breaks the system because event framework uses tasks
+    //call EventFramework.post_detailed_event_0(5, 'e', (uint16_t)&__FUNCTION__);
     atomic { return pushTask(id) ? SUCCESS : EBUSY; }
   }
 

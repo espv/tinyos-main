@@ -69,6 +69,8 @@ module DefaultLplP {
     interface Random;
     interface Leds;
     interface SystemLowPowerListening;
+
+    interface EventFramework;
   }
 }
 
@@ -317,10 +319,14 @@ implementation {
    * that this message should be ignored, especially if the destination address
    * as the broadcast address
    */
-  event message_t *SubReceive.receive(message_t* msg, void* payload, 
-      uint8_t len) {
+  event message_t *SubReceive.receive(message_t* msg, void* payload, uint8_t len) {
+    message_t *res;
+    call EventFramework.post_event(1, "SRV Start", "DefaultLplP.SubReceive.receive", "");
     startOffTimer();
-    return signal Receive.receive(msg, payload, len);
+    res = signal Receive.receive(msg, payload, len);
+
+    call EventFramework.post_event(1, "SRV Stop", "DefaultLplP.SubReceive.receive", "");
+    return res;
   }
   
   /***************** Timer Events ****************/

@@ -49,6 +49,7 @@ module PacketLinkP {
     interface PacketAcknowledgements;
     interface Timer<TMilli> as DelayTimer;
     interface CC2420PacketBody;
+    interface EventFramework;
   }
 }
 
@@ -116,7 +117,11 @@ implementation {
    * @return TRUE if the message was delivered.
    */
   command bool PacketLink.wasDelivered(message_t *msg) {
-    return call PacketAcknowledgements.wasAcked(msg);
+    bool was_acked = call PacketAcknowledgements.wasAcked(msg);
+    return 1;
+
+    //printf("Packet with seq no %d was acked: %d\n", ((uint8_t*)msg)[3], was_acked);
+    return was_acked;
   }
   
   /***************** Send Commands ***************/
@@ -129,6 +134,7 @@ implementation {
    */
   command error_t Send.send(message_t *msg, uint8_t len) {
     error_t error;
+    //call EventFramework.post_event(1, "SRV command start", "PacketLinkP.Send.send", "");
     if(call SendState.requestState(S_SENDING) == SUCCESS) {
     
       currentSendMsg = msg;
@@ -143,8 +149,11 @@ implementation {
         call SendState.toIdle();
       }
       
+      //call EventFramework.post_event(1, "SRV command stop1", "PacketLinkP.Send.send", "");
       return error;
     }
+
+    //call EventFramework.post_event(1, "SRV command stop2", "PacketLinkP.Send.send", "");
     return EBUSY;
   }
 
@@ -169,23 +178,27 @@ implementation {
   
   /***************** SubSend Events ***************/
   event void SubSend.sendDone(message_t* msg, error_t error) {
+    //call EventFramework.post_event(1, "SRV start", "PacketLinkP.SubSend.sendDone", "");
     if(call SendState.getState() == S_SENDING) {
       totalRetries++;
       if(call PacketAcknowledgements.wasAcked(msg)) {
+        //call EventFramework.post_event(1, "Cond1", "PacketLinkP.SubSend.sendDone", "");
         signalDone(SUCCESS);
         return;
         
       } else if(totalRetries < call PacketLink.getRetries(currentSendMsg)) {
-        
         if(call PacketLink.getRetryDelay(currentSendMsg) > 0) {
+          //call EventFramework.post_event(1, "Cond2", "PacketLinkP.SubSend.sendDone", "");
           // Resend after some delay
           call DelayTimer.startOneShot(call PacketLink.getRetryDelay(currentSendMsg));
           
         } else {
           // Resend immediately
+          //call EventFramework.post_event(1, "Cond3", "PacketLinkP.SubSend.sendDone", "");
           post send();
         }
         
+        //call EventFramework.post_event(1, "SRV stop2", "PacketLinkP.SubSend.sendDone", "");
         return;
       }
     }

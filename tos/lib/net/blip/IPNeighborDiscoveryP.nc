@@ -49,6 +49,7 @@ module IPNeighborDiscoveryP {
     interface LocalIeeeEui64;
 #endif
 
+    interface EventFramework;
   }
 } implementation {
 
@@ -327,7 +328,7 @@ module IPNeighborDiscoveryP {
                         void *packet,
                         size_t len,
                         struct ip6_metadata *meta) {
-
+     
     struct nd_neighbor_solicitation_t* ns;
     uint8_t* cur = (uint8_t*) packet;
     uint8_t type;
@@ -570,8 +571,17 @@ module IPNeighborDiscoveryP {
   command error_t IPForward.send(struct in6_addr *next,
                                  struct ip6_packet *msg,
                                  void *ptr) {
+    /* Called by IPForwardingEngineP do_send within IPForward.recv.
+     * This function enqueues packets and calls IPDispatchP.send . */
     struct ieee154_frame_addr fr_addr;
     struct in6_addr local_addr;
+    error_t res;
+
+    /* This function takes exactly 50 ticks consistently. It is called within IPDispatchP.receive,
+     * but not only there. Therefore we don't need to record it yet because IPDispatchP.receive is
+     * also consistent.
+     */
+
     fr_addr.ieee_dstpan = call Ieee154Address.getPanId();
     call IPAddress.getLLAddr(&local_addr);
 
@@ -593,12 +603,19 @@ module IPNeighborDiscoveryP {
       printf("IPND - next-hop address resolution failed\n");
       return FAIL;
     }
-    printf("IPNeighborDiscovery: Converting to 15.4 addresses\n");
-    printf(  "  source: "); printf_ieee154addr(&fr_addr.ieee_src);
-    printf("\n  dest:   "); printf_ieee154addr(&fr_addr.ieee_dst);
-    printf("\n");
 
-    return call IPLower.send(&fr_addr, msg, ptr);
+    // Added by Espen
+    if (TOS_NODE_ID != 2 && TOS_NODE_ID != 3) {
+      fr_addr.ieee_dst.i_laddr.data[0] = 2;
+    }
+
+    //printf("IPNeighborDiscovery: Converting to 15.4 addresses\n");
+    //printf(  "  source: "); printf_ieee154addr(&fr_addr.ieee_src);
+    //printf("\n  dest:   "); printf_ieee154addr(&fr_addr.ieee_dst);
+    //printf("\n");
+    res = call IPLower.send(&fr_addr, msg, ptr);
+
+    return res;
   }
 
   event void IPLower.recv(struct ip6_hdr *iph,

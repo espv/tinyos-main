@@ -96,4 +96,7 @@ implementation {
   DefaultLplP.Random -> RandomC;
   DefaultLplP.Leds -> LedsC;
   DefaultLplP.SystemLowPowerListening -> SystemLowPowerListeningC;
+
+  components EventFrameworkC;
+  DefaultLplP.EventFramework -> EventFrameworkC;
 }

@@ -55,6 +55,7 @@ module CC2420SpiP @safe() {
     interface SpiPacket;
     interface State as WorkingState;
     interface Leds;
+    //interface EventFramework;
   }
 }
 
@@ -125,7 +126,7 @@ implementation {
   
   async command error_t Resource.immediateRequest[ uint8_t id ]() {
     error_t error;
-        
+    
     atomic {
       if ( call WorkingState.requestState(S_BUSY) != SUCCESS ) {
         return EBUSY;
@@ -143,6 +144,7 @@ implementation {
         call WorkingState.toIdle();
       }
     }
+
     return error;
   }
 
@@ -188,7 +190,12 @@ implementation {
   /***************** Fifo Commands ****************/
   async command cc2420_status_t Fifo.beginRead[ uint8_t addr ]( uint8_t* data, 
                                                                 uint8_t len ) {
-    
+    /*
+     * This function is called as many times as packets are received uniquely by
+     * the device: Either packets from mote 1 to mote 2 that are acked or
+     * acks by mote 3 to mote 2. Count all acks to get a good estimate. It's still
+     * possible that the ack from mote 3 is lost, but is unlikely.
+     */
     cc2420_status_t status = 0;
 
     atomic {
@@ -201,14 +208,14 @@ implementation {
         
     status = call SpiByte.write( m_addr );
     call Fifo.continueRead[ addr ]( data, len );
-    
     return status;
-    
   }
 
   async command error_t Fifo.continueRead[ uint8_t addr ]( uint8_t* data,
                                                            uint8_t len ) {
-    return call SpiPacket.send( NULL, data, len );
+    error_t res;
+    res = call SpiPacket.send( NULL, data, len );
+    return res;
   }
 
   async command cc2420_status_t Fifo.write[ uint8_t addr ]( uint8_t* data, 

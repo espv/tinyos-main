@@ -40,18 +40,21 @@ module IPPacketC {
              nxt == IPV6_DEST || nxt == IPV6_MOBILITY)) || // consider IPV6_IPV6 a transport type
            (*search_type != IP6PKT_TRANSPORT && *search_type != nxt)) {
 
-      if (iov_read(payload, off, sizeof(ext), (void *)&ext) != sizeof(ext))
+      if (iov_read(payload, off, sizeof(ext), (void *)&ext) != sizeof(ext)) {
         return -1;
+      }
 
       nxt = ext.ip6e_nxt;
       off += (ext.ip6e_len + 1) * 8;
     }
     if (*search_type == IP6PKT_TRANSPORT)
       *search_type = nxt;
-    if (nxt == IPV6_NONEXT)
+    if (nxt == IPV6_NONEXT) {
       return -1;
-    else
+    }
+    else {
       return off;
+    }
   }
 
   /**

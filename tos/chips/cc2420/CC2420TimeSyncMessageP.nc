@@ -38,12 +38,14 @@ module CC2420TimeSyncMessageP
 {
     provides
     {
-        interface TimeSyncAMSend<T32khz, uint32_t> as TimeSyncAMSend32khz[uint8_t id];
+        //interface TimeSyncAMSend<T32khz, uint32_t> as TimeSyncAMSend32khz[uint8_t id];
+        interface TimeSyncAMSend<TMicro, uint32_t> as TimeSyncAMSend32khz[uint8_t id];
         interface TimeSyncAMSend<TMilli, uint32_t> as TimeSyncAMSendMilli[uint8_t id];
         interface Packet;
         interface AMPacket;
 
-        interface TimeSyncPacket<T32khz, uint32_t> as TimeSyncPacket32khz;
+        //interface TimeSyncPacket<T32khz, uint32_t> as TimeSyncPacket32khz;
+        interface TimeSyncPacket<TMicro, uint32_t> as TimeSyncPacket32khz;
         interface TimeSyncPacket<TMilli, uint32_t> as TimeSyncPacketMilli;
         
         interface Receive[am_id_t id];

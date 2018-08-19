@@ -194,6 +194,5 @@ implementation {
   // fifos
   RXFIFO = Spi.Fifo[ CC2420_RXFIFO ];
   TXFIFO = Spi.Fifo[ CC2420_TXFIFO ];
-
 }
 

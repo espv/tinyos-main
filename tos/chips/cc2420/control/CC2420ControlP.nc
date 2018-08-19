@@ -373,6 +373,9 @@ implementation {
   command void CC2420Config.setAutoAck(bool enableAutoAck, bool hwAutoAck) {
     atomic autoAckEnabled = enableAutoAck;
     atomic hwAutoAckDefault = hwAutoAck;
+
+    atomic autoAckEnabled = FALSE;
+    atomic hwAutoAckDefault = FALSE;
   }
   
   /**
@@ -380,6 +383,7 @@ implementation {
    *     acks are the default
    */
   async command bool CC2420Config.isHwAutoAckDefault() {
+    atomic return FALSE;
     atomic return hwAutoAckDefault;    
   }
   

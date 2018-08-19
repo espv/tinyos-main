@@ -75,6 +75,9 @@ configuration IPDispatchC {
   components new QueueC(struct send_entry *, N_FRAGMENTS);
   components new PoolC(struct send_info, N_CONCURRENT_SENDS) as SendInfoPool;
 
+  components EventFrameworkC;
+  QueueC.EventFramework -> EventFrameworkC;
+
   IPDispatchP.FragPool -> FragPool.Pool;
   IPDispatchP.SendEntryPool -> SendEntryPool.Pool;
   IPDispatchP.SendInfoPool  -> SendInfoPool.Pool;

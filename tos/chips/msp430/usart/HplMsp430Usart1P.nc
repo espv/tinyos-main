@@ -319,6 +319,8 @@ implementation
     if (IFG2 & UTXIFG1){
       return TRUE;
     }
+    printf("IFG2: %d, UTXIFG1: %d, ~UTXIFG1: %d, IFG2 & ~UTXIFG1: %d, 33 & ~UTXIFG1: %d, ~URXIFG1: %d, URXIFG1: %d\n", IFG2, UTXIFG1, ~UTXIFG1, IFG2 & ~UTXIFG1, 33 & ~UTXIFG1, ~URXIFG1, URXIFG1);
+    printf("~(UTXIFG1 | URXIFG1): %d, &IFG2: %d\n", ~(UTXIFG1 | URXIFG1), &IFG2);
     return FALSE;
   }
 

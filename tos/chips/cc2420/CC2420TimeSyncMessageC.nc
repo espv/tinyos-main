@@ -55,8 +55,10 @@ configuration CC2420TimeSyncMessageC
         interface PacketAcknowledgements;
         interface LowPowerListening;
     
-        interface TimeSyncAMSend<T32khz, uint32_t> as TimeSyncAMSend32khz[am_id_t id];
-        interface TimeSyncPacket<T32khz, uint32_t> as TimeSyncPacket32khz;
+        //interface TimeSyncAMSend<T32khz, uint32_t> as TimeSyncAMSend32khz[am_id_t id];
+        //interface TimeSyncPacket<T32khz, uint32_t> as TimeSyncPacket32khz;
+        interface TimeSyncAMSend<TMicro, uint32_t> as TimeSyncAMSendMicro[am_id_t id];
+        interface TimeSyncPacket<TMicro, uint32_t> as TimeSyncPacketMicro;
 
         interface TimeSyncAMSend<TMilli, uint32_t> as TimeSyncAMSendMilli[am_id_t id];
         interface TimeSyncPacket<TMilli, uint32_t> as TimeSyncPacketMilli;
@@ -67,7 +69,7 @@ implementation
 {
         components CC2420TimeSyncMessageP, CC2420ActiveMessageC, CC2420PacketC, LedsC;
 
-        TimeSyncAMSend32khz = CC2420TimeSyncMessageP;
+        //TimeSyncAMSend32khz = CC2420TimeSyncMessageP;
         TimeSyncPacket32khz = CC2420TimeSyncMessageP;
 
         TimeSyncAMSendMilli = CC2420TimeSyncMessageP;

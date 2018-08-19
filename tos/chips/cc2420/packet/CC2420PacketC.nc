@@ -43,6 +43,7 @@ configuration CC2420PacketC {
     interface CC2420PacketBody;
     interface LinkPacketMetadata;
 
+    interface PacketTimeStamp<TMicro, uint32_t> as PacketTimeStampMicro;
     interface PacketTimeStamp<T32khz, uint32_t> as PacketTimeStamp32khz;
     interface PacketTimeStamp<TMilli, uint32_t> as PacketTimeStampMilli;
     interface PacketTimeSyncOffset;
@@ -58,11 +59,13 @@ implementation {
   LinkPacketMetadata   = CC2420PacketP;
   PacketTimeStamp32khz = CC2420PacketP;
   PacketTimeStampMilli = CC2420PacketP;
+  PacketTimeStampMicro = CC2420PacketP;
   PacketTimeSyncOffset = CC2420PacketP;
 
-  components Counter32khz32C, new CounterToLocalTimeC(T32khz);
-  CounterToLocalTimeC.Counter -> Counter32khz32C;
-  CC2420PacketP.LocalTime32khz -> CounterToLocalTimeC;
+  components CounterMicro32C, new CounterToLocalTimeC(TMicro);
+  //components Counter32khz32C, new CounterToLocalTimeC(T32khz);
+  CounterToLocalTimeC.Counter -> CounterMicro32C;//Counter32khz32C;
+  CC2420PacketP.LocalTimeMicro -> CounterToLocalTimeC;//LocalTime32khz -> CounterToLocalTimeC;
 
   //DummyTimer is introduced to compile apps that use no timers
   components HilTimerMilliC, new TimerMilliC() as DummyTimer;

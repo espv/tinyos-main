@@ -123,6 +123,7 @@ implementation
 
 	event message_t* SubReceive.receive(message_t* msg)
 	{
+		//call EventFramework.post_event(1, "SRV Start", "ActiveMessageLayerP.SubReceive.receive", "");
 		if( call SubPacket.payloadLength(msg) >= sizeof(activemessage_header_t) )
 		{
 			am_id_t id = call AMPacket.type(msg);
@@ -133,6 +134,7 @@ implementation
 				? signal Receive.receive[id](msg, payload, len)
 				: signal Snoop.receive[id](msg, payload, len);
 		}
+		//call EventFramework.post_event(1, "SRV Stop", "ActiveMessageLayerP.SubReceive.receive", "");
 		return msg;
 	}
 

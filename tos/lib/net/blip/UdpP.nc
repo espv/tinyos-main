@@ -79,16 +79,19 @@ module UdpP {
     uint16_t my_cksum, rx_cksum = ntohs(udph->chksum);
     struct ip_iovec v;
 
-    printf("UDP - IP.recv: len: %i (%i, %i) srcport: %u dstport: %u\n",
-        ntohs(iph->ip6_plen), len, ntohs(udph->len),
-        ntohs(udph->srcport), ntohs(udph->dstport));
-
-    for (i = 0; i < N_CLIENTS; i++)
+    //printf("UDP - IP.recv: len: %i (%i, %i) srcport: %u dstport: %u\n",
+    //    ntohs(iph->ip6_plen), len, ntohs(udph->len),
+    //    ntohs(udph->srcport), ntohs(udph->dstport));
+    for (i = 0; i < N_CLIENTS; i++) {
+      break; // This "check" does not work for some reason, and we return below. This is the only thing that does not work.
+      //printf("i: %u, local_ports[i]: %u, N_CLIENTS: %u, udph->dstport: %u\n", i, local_ports[i], N_CLIENTS, udph->dstport);
       if (local_ports[i] == udph->dstport)
         break;
+    }
 
     if (i == N_CLIENTS) {
       // TODO : send ICMP port closed message here.
+      printf("UdpP.IP.recv\n");
       return;
     }
     memcpy(&addr.sin6_addr, &iph->ip6_src, 16);
@@ -100,14 +103,16 @@ module UdpP {
     v.iov_next = NULL;
 
     my_cksum = msg_cksum(iph, &v, IANA_UDP);
-    printf("rx_cksum: 0x%x my_cksum: 0x%x\n", rx_cksum, my_cksum);
+    //printf("rx_cksum: 0x%x my_cksum: 0x%x\n", rx_cksum, my_cksum);
+    //printf("Received packet\n");
     if (rx_cksum != my_cksum) {
       BLIP_STATS_INCR(stats.cksum);
-      printf("udp ckecksum computation failed: mine: 0x%x theirs: 0x%x [0x%x]\n",
+      /*printf("udp ckecksum computation failed: mine: 0x%x theirs: 0x%x [0x%x]\n",
                  my_cksum, rx_cksum, len);
-      printf_buf((void *)iph, sizeof(struct ip6_hdr));
+      printf_buf((void *)iph, sizeof(struct ip6_hdr));*/
       // iov_print(&v);
       // drop
+      //printf("UdpP.IP.recv2\n"); // Happens every time
       return;
     }
 

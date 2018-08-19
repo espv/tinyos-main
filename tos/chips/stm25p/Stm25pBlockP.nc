@@ -85,6 +85,7 @@ implementation {
   
   command error_t Read.read[ uint8_t id ]( storage_addr_t addr, void* buf,
 					   storage_len_t len ) {
+    printf("m_req.req = S_READ, id: %d\n", id);
     m_req.req = S_READ;
     m_req.addr = addr;
     m_req.buf = buf;
@@ -95,6 +96,7 @@ implementation {
   command error_t Read.computeCrc[ uint8_t id ]( storage_addr_t addr,
 						 storage_len_t len,
 						 uint16_t crc ) {
+    printf("m_req.req = S_CRC\n");
     m_req.req = S_CRC;
     m_req.addr = addr;
     m_req.buf = (void*)crc;
@@ -104,6 +106,7 @@ implementation {
   
   command error_t Write.write[ uint8_t id ]( storage_addr_t addr, void* buf, 
 					     storage_len_t len ) {
+    //printf("m_req.req = S_WRITE, id: %d, m_block_state[ %d ].req: %d\n", id, id, m_block_state[ id ].req);
     m_req.req = S_WRITE;
     m_req.addr = addr;
     m_req.buf = buf;
@@ -112,19 +115,23 @@ implementation {
   }
   
   command error_t Write.sync[ uint8_t id ]() {
+    printf("m_req.req = S_SYNC\n");
     m_req.req = S_SYNC;
     return newRequest( id );
   }
   
   command error_t Write.erase[ uint8_t id ]() {
+    printf("m_req.req = S_ERASE\n");
     m_req.req = S_ERASE;
     return newRequest( id );
   }
   
   error_t newRequest( uint8_t client ) {
     
-    if ( m_block_state[ client ].req != S_IDLE )
+    if ( m_block_state[ client ].req != S_IDLE ) {
+      //printf("newRequest, not idle\n");
       return FAIL;
+    }
 
     call ClientResource.request[ client ]();
     m_block_state[ client ] = m_req;
@@ -191,6 +198,7 @@ implementation {
     stm25p_block_req_t req = m_block_state[ id ].req;    
     
     call ClientResource.release[ id ]();
+    printf("m_block_state[ id ].req = S_IDLE\n");
     m_block_state[ id ].req = S_IDLE;
     switch( req ) {
     case S_READ:

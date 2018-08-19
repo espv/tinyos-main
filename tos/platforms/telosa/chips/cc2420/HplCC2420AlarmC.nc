@@ -41,14 +41,15 @@ generic configuration HplCC2420AlarmC() {
 
   provides interface Init;
   provides interface Alarm<T32khz,uint32_t> as Alarm32khz32;
-
+  //provides interface Alarm<TMicro,uint32_t> as AlarmMicro32;
 }
 
 implementation {
 
   components new Alarm32khz32C();
+  //components new AlarmMicro32C();
 
   Init = Alarm32khz32C;
   Alarm32khz32 = Alarm32khz32C;
-  
+  //AlarmMicro32 = AlarmMicro32C;
 }

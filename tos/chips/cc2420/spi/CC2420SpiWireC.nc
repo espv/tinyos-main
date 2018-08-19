@@ -66,4 +66,7 @@ implementation {
   components LedsC;
   SpiP.Leds -> LedsC;
 
+  // Added by Espen
+  //components EventFrameworkC;
+  //SpiP.EventFramework -> EventFrameworkC;
 }

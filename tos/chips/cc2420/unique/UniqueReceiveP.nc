@@ -48,6 +48,7 @@ module UniqueReceiveP @safe() {
   uses {
     interface Receive as SubReceive;
     interface CC2420PacketBody;
+    interface EventFramework;
   }
 }
 
@@ -82,18 +83,46 @@ implementation {
   void insert(uint16_t msgSource, uint8_t msgDsn);
   uint16_t getSourceKey(message_t ONE *msg);
   
+  uint8_t has_seen_packet;
+  uint8_t subreceive_receive_addr;
   /***************** SubReceive Events *****************/
   event message_t *SubReceive.receive(message_t* msg, void* payload, 
       uint8_t len) {
+    /* Espen believes this should be the first place one needs to look and trace
+     * when wanting to know which (undamaged) packets have been received.
+     * If a duplicate packet gets received, this is where we'll drop it.
+     */
 
-    uint16_t msgSource = getSourceKey(msg);
-    uint8_t msgDsn = (call CC2420PacketBody.getHeader(msg))->dsn;
+    message_t *res;
 
-    if(hasSeen(msgSource, msgDsn)) {
-      return signal DuplicateReceive.receive(msg, payload, len);
+    uint16_t msgSource;
+    uint8_t msgDsn;
+
+    //call EventFramework.trace_event(0);
+    //call EventFramework.post_event(1, "SRV Start", "UniqueReceiveP.SubReceive.receive", "");
+    //if (TOS_NODE_ID == 1 || TOS_NODE_ID == 2)
+      //printf("UniqueReceiveP.SubReceive.receive, msg.dsn: %d\n", (call CC2420PacketBody.getHeader(msg))->dsn);
+    msgSource = getSourceKey(msg);
+    msgDsn = (call CC2420PacketBody.getHeader(msg))->dsn;
+
+	/*atomic {
+		call EventFramework.trace_event(150);
+	    call EventFramework.trace_special_event(msgDsn);
+	}*/
+
+    has_seen_packet = hasSeen(msgSource, msgDsn);
+    //call EventFramework.post_detailed_event_1(6, 'f', (uint16_t)&__FUNCTION__, (uint16_t)&has_seen_packet, (uint8_t)has_seen_packet);
+    if(has_seen_packet && TOS_NODE_ID != 2) {  // Let mote 2 send packet to ULP even with a duplicate packet because we never resend packets anyway, and will not see duplicates, except when we purposely send the same packet
+      res = signal DuplicateReceive.receive(msg, payload, len);
+      //call EventFramework.post_event(1, "SRV Stop1", "UniqueReceiveP.SubReceive.receive", "");
+      //call EventFramework.trace_event(0);
+      return res;
     } else {
       insert(msgSource, msgDsn);
-      return signal Receive.receive(msg, payload, len);
+      res = signal Receive.receive(msg, payload, len);
+      //call EventFramework.post_event(1, "SRV Stop2", "UniqueReceiveP.SubReceive.receive", "");
+      //call EventFramework.trace_event(0);
+      return res;
     }
   }
   

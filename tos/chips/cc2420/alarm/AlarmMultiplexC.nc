@@ -44,7 +44,7 @@ configuration AlarmMultiplexC {
 
   provides interface Init;
   provides interface Alarm<T32khz,uint32_t> as Alarm32khz32;
-
+  //provides interface Alarm<TMicro,uint32_t> as AlarmMicro32;
 }
 
 implementation {
@@ -53,5 +53,6 @@ implementation {
 
   Init = Alarm;
   Alarm32khz32 = Alarm;
+  //AlarmMicro32 = Alarm;
 
 }

@@ -46,6 +46,7 @@ module UniqueSendP @safe() {
     interface State;
     interface Random;
     interface CC2420PacketBody;
+    interface EventFramework;
   }
 }
 
@@ -73,17 +74,38 @@ implementation {
    * signal receive() more than once for that message.
    */
   command error_t Send.send(message_t *msg, uint8_t len) {
+    /* This command is called from ... */
     error_t error;
+    //printf("UniqueSendP.Send.send seq no: %d\n", ((uint8_t*)msg)[36]);
+    /*int i;
+    printf("UniqueSendP.Send.send: ");
+    for (i = 0; i < 200; i++)
+      if (((uint8_t*)msg)[i] != 0 && ((uint8_t*)msg)[i] < 10)
+        printf("%d-%d,", i, ((uint8_t*)msg)[i]);
+    printf("\n");*/
+
+    //printf("\n");
+    // Unnecessary, just for stress-testing
+    //call EventFramework.post_event(1, "SRV Start", "UniqueSendP.Send.send", "");
     if(call State.requestState(S_SENDING) == SUCCESS) {
-      (call CC2420PacketBody.getHeader(msg))->dsn = localSendId++;
+      if (TOS_NODE_ID == 2)
+      	(call CC2420PacketBody.getHeader(msg))->dsn = mote2_seqno;
+      else
+      	(call CC2420PacketBody.getHeader(msg))->dsn = localSendId++;
+      //(call CC2420PacketBody.getHeader(msg))->dsn = localSendId++;
+      // If we comment out the above command and uncomment the below,
+      // all packets sent will be of sequence number 0.
+      //(call CC2420PacketBody.getHeader(msg))->dsn = localSendId;
       
       if((error = call SubSend.send(msg, len)) != SUCCESS) {
         call State.toIdle();
       }
       
+      //call EventFramework.post_event(1, "SRV Stop1", "UniqueSendP.Send.send", "");
       return error;
     }
     
+    //call EventFramework.post_event(1, "SRV Stop2", "UniqueSendP.Send.send", "");
     return EBUSY;
   }
 
@@ -102,8 +124,10 @@ implementation {
   
   /***************** SubSend Events ****************/
   event void SubSend.sendDone(message_t *msg, error_t error) {
+    //call EventFramework.post_event(1, "SRV Start", "UniqueSendP.SubSend.sendDone", "");
     call State.toIdle();
     signal Send.sendDone(msg, error);
+    //call EventFramework.post_event(1, "SRV Stop", "UniqueSendP.SubSend.sendDone", "");
   }
   
 }

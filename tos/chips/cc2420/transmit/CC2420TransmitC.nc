@@ -46,6 +46,7 @@ configuration CC2420TransmitC {
     interface RadioBackoff;
     interface ReceiveIndicator as EnergyIndicator;
     interface ReceiveIndicator as ByteIndicator;
+    interface QuickSend;
   }
 }
 
@@ -57,6 +58,7 @@ implementation {
   RadioBackoff = CC2420TransmitP;
   EnergyIndicator = CC2420TransmitP.EnergyIndicator;
   ByteIndicator = CC2420TransmitP.ByteIndicator;
+  QuickSend = CC2420TransmitP;
 
   components MainC;
   MainC.SoftwareInit -> CC2420TransmitP;

@@ -51,11 +51,14 @@ module CC2420TransmitP @safe() {
   provides interface RadioBackoff;
   provides interface ReceiveIndicator as EnergyIndicator;
   provides interface ReceiveIndicator as ByteIndicator;
+  provides interface QuickSend;
   
   uses interface Alarm<T32khz,uint32_t> as BackoffTimer;
+  //uses interface Alarm<TMicro,uint32_t> as BackoffTimer;
   uses interface CC2420Packet;
   uses interface CC2420PacketBody;
   uses interface PacketTimeStamp<T32khz,uint32_t>;
+  //uses interface PacketTimeStamp<TMicro,uint32_t>;
   uses interface PacketTimeSyncOffset;
   uses interface GpioCapture as CaptureSFD;
   uses interface GeneralIO as CCA;
@@ -82,6 +85,8 @@ module CC2420TransmitP @safe() {
 
   uses interface CC2420Receive;
   uses interface Leds;
+
+  uses interface EventFramework;
 }
 
 implementation {
@@ -190,6 +195,7 @@ implementation {
 
   /**************** Send Commands ****************/
   async command error_t Send.send( message_t* ONE p_msg, bool useCca ) {
+    // Called within CC2420CsmaP.Send.send
     return send( p_msg, useCca );
   }
 
@@ -280,8 +286,10 @@ implementation {
   async event void CaptureSFD.captured( uint16_t time ) {
     uint32_t time32;
     uint8_t sfd_state = 0;
+    call EventFramework.trace_event(89);
     atomic {
       time32 = getTime32(time);
+      //printf("CaptureSFD.captured time: ?, time32: %lu\n", call BackoffTimer.getNow());
       switch( m_state ) {
         
       case S_SFD:
@@ -322,7 +330,9 @@ implementation {
         
         if ( (call CC2420PacketBody.getHeader( m_msg ))->fcf & ( 1 << IEEE154_FCF_ACK_REQ ) ) {
           m_state = S_ACK_WAIT;
-          call BackoffTimer.start( CC2420_ACK_WAIT_DELAY );
+          ////call EventFramework.post_event(1, "BackoffTimer", "CC2420TransmitP.CaptureSFD.captured", "");
+          // Multiply by 4 to avoid ack timeout because of events
+          call BackoffTimer.start( CC2420_ACK_WAIT_DELAY * 4 );
         } else {
           signalDone(SUCCESS);
         }
@@ -335,6 +345,7 @@ implementation {
       default:
         /* this is the SFD for received messages */
         if ( !m_receiving && sfdHigh == FALSE ) {
+          call EventFramework.trace_event(191);
           sfdHigh = TRUE;
           call CaptureSFD.captureFallingEdge();
           // safe the SFD pin status for later use
@@ -426,6 +437,7 @@ implementation {
       break;
       
     case S_BEGIN_TRANSMIT:
+      ////call EventFramework.post_event(1, "Cond", "CC2420TransmitP.SpiResource.granted", "");
       attemptSend();
       break;
       
@@ -453,7 +465,10 @@ implementation {
    */
   async event void TXFIFO.writeDone( uint8_t* tx_buf, uint8_t tx_len,
                                      error_t error ) {
-
+    // PEUExit. PEUStart is right before TXFIFO.write in loadTXFIFO
+    // This hardware interrupt invokes sendDone
+    // TODO: Use the tracepoint below
+    call EventFramework.trace_event(165);
     call CSN.set();
     if ( m_state == S_CANCEL ) {
       atomic {
@@ -463,12 +478,15 @@ implementation {
       }
       releaseSpiResource();
       m_state = S_STARTED;
+      //printf("Before CC2420TransmitP.Send.sendDone\n");
       signal Send.sendDone( m_msg, ECANCEL );
+      //printf("After CC2420TransmitP.Send.sendDone\n");
       
     } else if ( !m_cca ) {
       atomic {
         m_state = S_BEGIN_TRANSMIT;
       }
+      ////call EventFramework.post_event(1, "Cond", "CC2420TransmitP.TXFIFO.writeDone", "");
       attemptSend();
       
     } else {
@@ -480,6 +498,7 @@ implementation {
       signal RadioBackoff.requestInitialBackoff(m_msg);
       call BackoffTimer.start(myInitialBackoff);
     }
+
   }
 
   
@@ -496,7 +515,9 @@ implementation {
    * we should have gotten one.
    */
   async event void BackoffTimer.fired() {
+    // PEUStop
     atomic {
+      ////call EventFramework.post_event(1, "SRV Start", "CC2420TransmitP.BackoffTimer.fired", "");
       switch( m_state ) {
         
       case S_SAMPLE_CCA : 
@@ -504,6 +525,7 @@ implementation {
         // sampled during the ack turn-around window
         if ( call CCA.get() ) {
           m_state = S_BEGIN_TRANSMIT;
+          ////call EventFramework.post_event(1, "BackoffTimer", "CC2420TransmitP.BackoffTimer.fired", "");
           call BackoffTimer.start( CC2420_TIME_ACK_TURNAROUND );
           
         } else {
@@ -514,6 +536,7 @@ implementation {
       case S_BEGIN_TRANSMIT:
       case S_CANCEL:
         if ( acquireSpiResource() == SUCCESS ) {
+          ////call EventFramework.post_event(1, "Cond", "CC2420TransmitP.BackoffTimer.fired", "");
           attemptSend();
         }
         break;
@@ -534,6 +557,8 @@ implementation {
       default:
         break;
       }
+
+      ////call EventFramework.post_event(1, "HIRQ Stop", "CC2420TransmitP.BackoffTimer.fired", "");
     }
   }
       
@@ -547,10 +572,12 @@ implementation {
   error_t send( message_t* ONE p_msg, bool cca ) {
     atomic {
       if (m_state == S_CANCEL) {
+        // This is the end of the sendTask chain of events
         return ECANCEL;
       }
       
       if ( m_state != S_STARTED ) {
+        // This is the end of the sendTask chain of events
         return FAIL;
       }
       
@@ -559,6 +586,7 @@ implementation {
 #endif
       m_state = S_LOAD;
       m_cca = cca;
+      //m_cca = FALSE; // send is called with cca=FALSE from CC2420CsmaP.Send.send
       m_msg = p_msg;
       totalCcaChecks = 0;
     }
@@ -567,6 +595,7 @@ implementation {
       loadTXFIFO();
     }
 
+    // This is the end of the sendTask chain of events
     return SUCCESS;
   }
   
@@ -586,16 +615,21 @@ implementation {
         return FAIL;
       }
       
-      m_cca = cca;
+      //m_cca = cca;
+      m_cca = FALSE; // We want cca on when we resend
       m_state = cca ? S_SAMPLE_CCA : S_BEGIN_TRANSMIT;
       totalCcaChecks = 0;
     }
     
+    call EventFramework.trace_event(93);
+    
     if(m_cca) {
       signal RadioBackoff.requestInitialBackoff(m_msg);
+      ////call EventFramework.post_event(1, "BackoffTimer", "CC2420TransmitP.resend", "");
       call BackoffTimer.start( myInitialBackoff );
       
     } else if ( acquireSpiResource() == SUCCESS ) {
+      ////call EventFramework.post_event(1, "Cond", "CC2420TransmitP.resend", "");
       attemptSend();
     }
     
@@ -743,6 +777,10 @@ implementation {
   void attemptSend() {
     uint8_t status;
     bool congestion = TRUE;
+    int i;
+    
+    if (TOS_NODE_ID == 2)
+    	m_state = S_CANCEL;
 
     atomic {
       if (m_state == S_CANCEL) {
@@ -751,6 +789,7 @@ implementation {
         call CSN.set();
         m_state = S_STARTED;
         signal Send.sendDone( m_msg, ECANCEL );
+        call EventFramework.trace_event(133);
         return;
       }
 #ifdef CC2420_HW_SECURITY
@@ -760,7 +799,16 @@ implementation {
       securityChecked = 1;
 #endif
       call CSN.clr();
-      status = m_cca ? call STXONCCA.strobe() : call STXON.strobe();
+      //printf("m_cca: %d\n", m_cca);
+      
+      //status = m_cca ? call STXONCCA.strobe() : call STXON.strobe();
+      status = m_cca = call STXONCCA.strobe();
+
+
+      // Strangely, m_cca is used both for STXONCCA.strobe() and the back-off timer.
+      // I think it's pretty clear that the STXONCCA.strobe() should always be used,
+      // but the back-off timer should only be used when a packet gets resent.
+      //status = call STXONCCA.strobe();  // This prevents collisions.
       if ( !( status & CC2420_STATUS_TX_ACTIVE ) ) {
         status = call SNOP.strobe();
         if ( status & CC2420_STATUS_TX_ACTIVE ) {
@@ -779,6 +827,9 @@ implementation {
     } else {
       call BackoffTimer.start(CC2420_ABORT_PERIOD);
     }
+    
+    call Leds.led2Toggle();
+    call EventFramework.trace_event(133);
   }
   
   
@@ -843,6 +894,7 @@ implementation {
     
     {
       uint8_t tmpLen __DEPUTY_UNUSED__ = header->length - 1;
+      call EventFramework.trace_event(21);
       call TXFIFO.write(TCAST(uint8_t * COUNT(tmpLen), header), header->length - 1);
     }
   }
@@ -852,6 +904,10 @@ implementation {
     abortSpiRelease = FALSE;
     call ChipSpiResource.attemptRelease();
     signal Send.sendDone( m_msg, err );
+  }
+  
+  command void QuickSend.DoQuickSend() {
+  	//attemptSend();
   }
 
 }

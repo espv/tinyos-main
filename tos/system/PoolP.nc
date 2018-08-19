@@ -64,6 +64,7 @@ implementation {
 
   command error_t Init.init() {
     int i;
+    //printf("%s, free = size: %d = %d\n", __FUNCTION__, free, size);
     for (i = 0; i < size; i++) {
       queue[i] = &pool[i];
     }
@@ -77,6 +78,10 @@ implementation {
     return free == 0;
   }
   command uint8_t Pool.size() {
+    if (TOS_NODE_ID == 2) {
+      //printf("%s: %d, addr of __FUNCTION__: 0x%x\n", __FUNCTION__, (int)free, &__FUNCTION__);
+      //printf("PoolP__0__Pool__size: %d\n", (uint16_t)&PoolP__0__Pool__size);
+    }
     dbg("PoolP", "%s size is %i\n", __FUNCTION__, (int)free);
     return free;
   }
@@ -86,6 +91,8 @@ implementation {
   }
 
   command pool_t* Pool.get() {
+    //if (TOS_NODE_ID == 2)
+      //printf("%s free: %d\n", __FUNCTION__, free);
     if (free) {
       pool_t* rval = queue[index];
       queue[index] = NULL;
@@ -101,12 +108,17 @@ implementation {
   }
 
   command error_t Pool.put(pool_t* newVal) {
+    //if (TOS_NODE_ID == 2)
+    //  printf("PoolP.Pool.put size: %d, free: %d\n", size, free);
     if (free >= size) {
+      //if (TOS_NODE_ID == 2)
+      //  printf("Pool.put free >= size\n");
       return FAIL;
     }
     else {
       uint16_t emptyIndex = (index + free);
       if (emptyIndex >= size) {
+        //printf("Pool.put emptyIndex >= size\n");
         emptyIndex -= size;
       }
       queue[emptyIndex] = newVal;

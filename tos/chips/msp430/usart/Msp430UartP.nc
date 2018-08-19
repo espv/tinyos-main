@@ -176,14 +176,38 @@ implementation {
   }
   
   async command error_t UartByte.send[ uint8_t id ]( uint8_t data ) {
-    if (call UsartResource.isOwner[id]() == FALSE)
-      return FAIL;
-    call Usart.clrTxIntr();
+    //if (data == 81)
+    //  return SUCCESS;
+    // Calling UsartResource.isOwner takes a long time, commented out to save time.
+    //if (call UsartResource.isOwner[id]() == FALSE)
+    //  return FAIL;
+    //call Usart.clrTxIntr();
     call Usart.disableTxIntr ();
-    call Usart.tx( data );
-    while( !call Usart.isTxIntrPending() );
-    call Usart.clrTxIntr();
+    //call Usart.clrIntr();
+    //call Usart.disableIntr();
+    // Wrapping the next two statements fixes the problem. However, it might be better
+    // to wrap the entire function in an atomic block, or maybe the next statements.
+    // The reason why is that if we include another while loop after this atomic block
+    // that does the same thing as the loop inside the atomic block, the system halts.
+    // It appears as though there might be something wrong with the interrupts.
+    //atomic {
+    // THE ERROR: IFG2 in HplMsp430Usart1P gets set to 0 somewhere. It's not being set
+    // in that file. There, it is only set to -33, -17 or -49. If it is not set to 0 anywhere,
+    // there might be corruption of data occurring somewhere. Regardless, the problem
+    // doesn't occur when wrapping this function in an atomic block. It might be benefitial
+    // to increase robustness of the system to include the atomic block anyway, or to suggest
+    // it to the supervisors.
+      call Usart.tx( data );
+      //if (data == 81)
+      //  call Usart.tx(10);
+      //while( !call Usart.isTxIntrPending() );
+    //}
+    //
+    //while( !call Usart.isTxIntrPending() );
+    //call Usart.clrTxIntr();
     call Usart.enableTxIntr();
+    //call Usart.clrIntr();
+    //call Usart.enableIntr();
     return SUCCESS;
   }
   

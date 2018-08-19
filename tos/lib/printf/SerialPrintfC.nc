@@ -36,6 +36,7 @@
 configuration SerialPrintfC {
   provides {
     interface StdControl;
+    interface Putchar; // Added by Espen
   }
 } implementation {
   components SerialPrintfP;
@@ -50,5 +51,6 @@ configuration SerialPrintfC {
 
   components PutcharC;
   PutcharC.Putchar -> SerialPrintfP;
+  Putchar = SerialPrintfP;
 }
 

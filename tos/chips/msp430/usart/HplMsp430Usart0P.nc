@@ -317,6 +317,7 @@ implementation
     if (IFG1 & UTXIFG0){
       return TRUE;
     }
+    
     return FALSE;
   }
 

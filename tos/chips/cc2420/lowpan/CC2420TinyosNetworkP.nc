@@ -60,6 +60,7 @@ module CC2420TinyosNetworkP @safe() {
     interface CC2420Packet;
     interface CC2420PacketBody;
     interface ResourceQueue as Queue;
+    interface EventFramework;
   }
 }
 
@@ -78,9 +79,14 @@ implementation {
   norace uint8_t resource_owner = OWNER_NONE, next_owner;
 
   command error_t ActiveSend.send(message_t* msg, uint8_t len) {
+    error_t res;
+    // Not called
+    ////call EventFramework.post_event(1, "SRV Start", "CC2420TinyosNetworkP.ActiveSend.send", "");
     call CC2420Packet.setNetwork(msg, TINYOS_6LOWPAN_NETWORK_ID);
     m_busy_client = CLIENT_AM;
-    return call SubSend.send(msg, len);
+    res = call SubSend.send(msg, len);
+    ////call EventFramework.post_event(1, "SRV Stop", "CC2420TinyosNetworkP.ActiveSend.send", "");
+    return res;
   }
 
   command error_t ActiveSend.cancel(message_t* msg) {
@@ -123,9 +129,13 @@ implementation {
   }
   /***************** Send Commands ****************/
   command error_t BareSend.send(message_t* msg, uint8_t len) {
+    error_t res;
+    //call EventFramework.post_event(1, "SRV Start", "CC2420TinyosNetworkP.BareSend.send", "");
     call BarePacket.setPayloadLength(msg, len);
     m_busy_client = CLIENT_BARE;
-    return call SubSend.send(msg, 0);
+    res = call SubSend.send(msg, 0);
+    //call EventFramework.post_event(1, "SRV Stop", "CC2420TinyosNetworkP.BareSend.send", "");
+    return res;
   }
 
   command error_t BareSend.cancel(message_t* msg) {
@@ -157,6 +167,8 @@ implementation {
   /***************** SubReceive Events ***************/
   event message_t *SubReceive.receive(message_t *msg, void *payload, uint8_t len) {
     uint8_t network = call CC2420Packet.getNetwork(msg);
+    message_t *res;
+    //call EventFramework.post_event(1, "SRV Start", "CC2420TinyosNetworkP.SubReceive.receive", "");
 
 #if !TOSSIM //TOSSIM doesn't seem to believe in CRCs
     if(!(call CC2420PacketBody.getMetadata(msg))->crc) {
@@ -166,14 +178,20 @@ implementation {
 
 #ifndef TFRAMES_ENABLED
     if (network == TINYOS_6LOWPAN_NETWORK_ID) {
-      return signal ActiveReceive.receive(msg, payload, len);
+      res = signal ActiveReceive.receive(msg, payload, len);
+      //call EventFramework.post_event(1, "SRV Stop1", "CC2420TinyosNetworkP.SubReceive.receive", "");
+      return res;
     } else {
-      return signal BareReceive.receive(msg, 
+      res = signal BareReceive.receive(msg, 
                                         call BareSend.getPayload(msg, len), 
                                         len + sizeof(cc2420_header_t));
+      //call EventFramework.post_event(1, "SRV Stop2", "CC2420TinyosNetworkP.SubReceive.receive", "");
+      return res;
     }
 #else
-    return signal ActiveReceive.receive(msg, payload, len);
+    res = signal ActiveReceive.receive(msg, payload, len);
+    //call EventFramework.post_event(1, "SRV Stop3", "CC2420TinyosNetworkP.SubReceive.receive", "");
+    return res;
 #endif
   }
 
@@ -205,6 +223,7 @@ implementation {
     post grantTask();
 
     if (TINYOS_N_NETWORKS > 1) {
+      //call EventFramework.post_event(3, "Cond1", "CC2420TinyosNetworkP.Resource.request", "");
       return call Queue.enqueue(id);
     } else {
       if (id == resource_owner) {

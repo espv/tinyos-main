@@ -40,6 +40,7 @@
 #include <packet.h>
 #include <sim_packet.h>
 
+
 Packet::Packet() {
   msgPtr = sim_packet_allocate();
   allocated = 1;

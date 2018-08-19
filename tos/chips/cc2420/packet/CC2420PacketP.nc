@@ -48,12 +48,14 @@ module CC2420PacketP @safe() {
     interface CC2420PacketBody;
     interface LinkPacketMetadata;
 
+    interface PacketTimeStamp<TMicro, uint32_t> as PacketTimeStampMicro;
     interface PacketTimeStamp<T32khz, uint32_t> as PacketTimeStamp32khz;
     interface PacketTimeStamp<TMilli, uint32_t> as PacketTimeStampMilli;
     interface PacketTimeSyncOffset;
   }
 
   uses interface Packet;
+  uses interface LocalTime<TMicro> as LocalTimeMicro;
   uses interface LocalTime<T32khz> as LocalTime32khz;
   uses interface LocalTime<TMilli> as LocalTimeMilli;
 }
@@ -63,16 +65,19 @@ implementation {
 
   /***************** PacketAcknowledgement Commands ****************/
   async command error_t Acks.requestAck( message_t* p_msg ) {
-    (call CC2420PacketBody.getHeader( p_msg ))->fcf |= 1 << IEEE154_FCF_ACK_REQ;
+    //(call CC2420PacketBody.getHeader( p_msg ))->fcf |= 1 << IEEE154_FCF_ACK_REQ;
+    (call CC2420PacketBody.getHeader( p_msg ))->fcf |= 0 << IEEE154_FCF_ACK_REQ;
     return SUCCESS;
   }
 
   async command error_t Acks.noAck( message_t* p_msg ) {
-    (call CC2420PacketBody.getHeader( p_msg ))->fcf &= ~(1 << IEEE154_FCF_ACK_REQ);
+    //(call CC2420PacketBody.getHeader( p_msg ))->fcf &= ~(1 << IEEE154_FCF_ACK_REQ);
+    (call CC2420PacketBody.getHeader( p_msg ))->fcf &= 0xFFFFFF;
     return SUCCESS;
   }
 
   async command bool Acks.wasAcked( message_t* p_msg ) {
+    return TRUE;
     return (call CC2420PacketBody.getMetadata( p_msg ))->ack;
   }
 
@@ -157,6 +162,29 @@ implementation {
     return call CC2420Packet.getLqi(msg) > 105;
   }
 
+  /***************** PacketTimeStampMicro Commands ****************/
+  async command bool PacketTimeStampMicro.isValid(message_t* msg)
+  {
+    return call PacketTimeStampMicro.isValid(msg);
+  }
+
+  async command uint32_t PacketTimeStampMicro.timestamp(message_t* msg)
+  {
+    //printf("\nPacketTimeStampMicro.timestamp\n");
+    return (call CC2420PacketBody.getMetadata( msg ))->timestamp;
+  }
+
+  async command void PacketTimeStampMicro.clear(message_t* msg)
+  {
+    call PacketTimeStampMicro.clear(msg);
+  }
+
+  async command void PacketTimeStampMicro.set(message_t* msg, uint32_t value)
+  {
+    //printf("\nPacketTimeStampMicro.set\n");
+    (call CC2420PacketBody.getMetadata( msg ))->timestamp = value;
+  }
+
   /***************** PacketTimeStamp32khz Commands ****************/
   async command bool PacketTimeStamp32khz.isValid(message_t* msg)
   {
@@ -165,6 +193,7 @@ implementation {
 
   async command uint32_t PacketTimeStamp32khz.timestamp(message_t* msg)
   {
+    //printf("\nPacketTimeStamp32khz.timestamp\n");
     return (call CC2420PacketBody.getMetadata( msg ))->timestamp;
   }
 
@@ -176,6 +205,7 @@ implementation {
 
   async command void PacketTimeStamp32khz.set(message_t* msg, uint32_t value)
   {
+    //printf("\nPacketTimeStamp32khz.set\n");
     (call CC2420PacketBody.getMetadata( msg ))->timestamp = value;
   }
 

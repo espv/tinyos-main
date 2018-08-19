@@ -158,9 +158,9 @@ module IPAddressP {
     }
 #endif
 
-    printf("IPAddress - Setting global address: ");
-    printf_in6addr(addr);
-    printf("\n");
+    //printf("IPAddress - Setting global address: ");
+    //printf_in6addr(addr);
+    //printf("\n");
 
     m_valid_addr = TRUE;
     signal IPAddress.changed(TRUE);

@@ -110,6 +110,18 @@ implementation
     // .TACLR = 0; reset timer A
     // .TAIE = 1; enable timer A interrupts
     TACTL = TASSEL1 | TAIE;
+
+    /*TAR = 0;
+
+    // I think the below makes TimerA read CPU cycles, not microseconds
+    // The inaccuracies we see with vanilla TimerA are still there.
+    // Either they are because of inaccurate clock, or our inaccurate
+    // measuring.
+    // One insight we get from using the below config for this timer
+    // is that the CPU seems to be running at ~3MHz, and not 4MHz.
+    TACTL = TASSEL1 | TAIE;
+    BCSCTL1 = RSEL2;
+    BCSCTL2 = 0;*/
   }
 
   command void Msp430ClockInit.defaultInitTimerB()

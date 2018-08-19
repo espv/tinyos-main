@@ -84,6 +84,7 @@ generic module Msp430SpiNoDmaP() {
   uses interface HplMsp430UsartInterrupts as UsartInterrupts;
   uses interface Leds;
 
+  uses interface EventFramework;
 }
 
 implementation {
@@ -133,13 +134,15 @@ implementation {
 
   async command uint8_t SpiByte.write( uint8_t tx ) {
     uint8_t byte;
-    // we are in spi mode which is configured to have turned off interrupts
-    //call Usart.disableRxIntr();
-    call Usart.tx( tx );
-    while( !call Usart.isRxIntrPending() );
-    call Usart.clrRxIntr();
-    byte = call Usart.rx();
-    //call Usart.enableRxIntr();
+    atomic {
+      // we are in spi mode which is configured to have turned off interrupts
+      //call Usart.disableRxIntr();
+      call Usart.tx( tx );
+      while( !call Usart.isRxIntrPending() );
+      call Usart.clrRxIntr();
+      byte = call Usart.rx();
+      //call Usart.enableRxIntr();
+    }
     return byte;
   }
 
@@ -184,19 +187,29 @@ implementation {
    uint8_t end;
    uint8_t tmp;
 
+   //call EventFramework.trace_event(99);
+   //call EventFramework.trace_event(100);
    atomic {
+     //call EventFramework.trace_event(60);
      call Usart.tx( m_tx_buf ? m_tx_buf[ m_pos ] : 0 );
+     //call EventFramework.trace_event(61);
 
      end = m_pos + SPI_ATOMIC_SIZE;
      if ( end > m_len )
        end = m_len;
 
+     //call EventFramework.trace_event(62);
      while ( ++m_pos < end ) {
+       //call EventFramework.trace_event(63);
        while( !call Usart.isRxIntrPending() );
+       //call EventFramework.trace_event(64);
        tmp = call Usart.rx();
        if ( m_rx_buf )
          m_rx_buf[ m_pos - 1 ] = tmp;
+       //call EventFramework.trace_event(65);
        call Usart.tx( m_tx_buf ? m_tx_buf[ m_pos ] : 0 );
+       //call EventFramework.trace_event(66);
+       //call EventFramework.trace_event(67);
      }
    }
 
@@ -229,16 +242,21 @@ implementation {
   }
 
   async event void UsartInterrupts.rxDone( uint8_t data ) {
-
+    //printf("UsartInterrupts.rxDone\n");
+    //call EventFramework.trace_event(58);
     if ( m_rx_buf )
       m_rx_buf[ m_pos-1 ] = data;
 
-    if ( m_pos < m_len )
+    if ( m_pos < m_len ) {
+      //call EventFramework.trace_event(59);
       continueOp();
+    }
     else {
       call Usart.disableRxIntr();
       signalDone();
     }
+    //call EventFramework.trace_event(68);
+    //call EventFramework.trace_event(88);
   }
 
   void signalDone() {

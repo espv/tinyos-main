@@ -73,6 +73,8 @@ module IPDispatchP {
     interface Timer<TMilli> as ExpireTimer;
 
     interface Leds;
+
+    interface EventFramework;
   }
 } implementation {
 
@@ -104,6 +106,23 @@ int lowpan_extern_match_context(struct in6_addr *addr, uint8_t *ctx_id) {
   uint8_t current_local_label = 0;
   ip_statistics_t stats;
 
+  uint8_t iplower_send_addr;
+  uint8_t state_not_running;
+  uint8_t s_info_is_null;
+  uint8_t enqueue_not_success;
+  uint8_t sendTask_addr;
+  uint8_t ieee154receive_receive_addr;
+  uint8_t ret_under_0;
+  uint8_t headers_lowmsg_nalp;
+  uint8_t hasFrag1_and_n_header;
+  uint8_t recon_size_cond;
+  uint8_t busy_or_not_running;
+  uint8_t send_queue_empty;
+  uint8_t failed_to_send;
+  uint8_t ieee154send_senddone_addr;
+  uint8_t radiocontrol_startdone_addr;
+  uint8_t splitcontrol_stop_addr;
+
   // this in theory could be arbitrarily large; however, it needs to
   // be large enough to hold all active reconstructions, and any tags
   // which we are dropping.  It's important to keep dropped tags
@@ -132,9 +151,20 @@ int lowpan_extern_match_context(struct in6_addr *addr, uint8_t *ctx_id) {
     recon->r_buf = NULL;
   }
 
+  bool send_info_null;
   struct send_info *getSendInfo() {
     struct send_info *ret = call SendInfoPool.get();
-    if (ret == NULL) return ret;
+    // Queue dequeuing
+    send_info_null = ret == NULL;
+    // If ret is NULL, this means that the packet gets dropped.
+    // Next task should be to find out exactly when this happens.
+    if (ret == NULL) {
+      // QUEUECOND send_info_queue empty and SRVEXIT
+      call EventFramework.trace_event(134);
+      return ret;
+    }
+
+    // QUEUECOND send_info_queue notempty
     ret->_refcount = 1;
     ret->upper_data = NULL;
     ret->failed = FALSE;
@@ -146,6 +176,9 @@ int lowpan_extern_match_context(struct in6_addr *addr, uint8_t *ctx_id) {
 #define SENDINFO_INCR(X) ((X)->_refcount)++
 void SENDINFO_DECR(struct send_info *si) {
   if (--(si->_refcount) == 0) {
+    //if (TOS_NODE_ID == 2)
+    //  printf("call SendInfoPool.put, size: %d\n", call SendInfoPool.size());
+    // Queue enqueuing
     call SendInfoPool.put(si);
   }
 }
@@ -204,25 +237,25 @@ void SENDINFO_DECR(struct send_info *si) {
    */
   void deliver(struct lowpan_reconstruct *recon) {
     struct ip6_hdr *iph = (struct ip6_hdr *)recon->r_buf;
-
+    // This function takes a consistent 59 clock ticks!
     // printf("deliver [%i]: ", recon->r_bytes_rcvd);
     // printf_buf(recon->r_buf, recon->r_bytes_rcvd);
 
-    printf("IPDispatchP: Received IPv6 Packet\n");
-    printf(  "  source:    ");
-    printf_in6addr(&iph->ip6_src);
-    printf("\n  dest:      ");
-    printf_in6addr(&iph->ip6_dst);
-    printf("\n  hop limit: %i\n", iph->ip6_hlim);
+    //printf("IPDispatchP: Received IPv6 Packet\n");
+    //printf(  "  source:    ");
+    //printf_in6addr(&iph->ip6_src);
+    //printf("\n  dest:      ");
+    //printf_in6addr(&iph->ip6_dst);
+    //printf("\n  hop limit: %i\n", iph->ip6_hlim);
 
     /* the payload length field is always compressed, have to put it back here */
     iph->ip6_plen = htons(recon->r_bytes_rcvd - sizeof(struct ip6_hdr));
     signal IPLower.recv(iph, (void *)(iph + 1), &recon->r_meta);
 
-    // printf("ip_free(%p)\n", recon->r_buf);
     ip_free(recon->r_buf);
     recon->r_timeout = T_UNUSED;
     recon->r_buf = NULL;
+
   }
 
   /*
@@ -249,10 +282,10 @@ void SENDINFO_DECR(struct send_info *si) {
    */
   void reconstruct_age(void *elt) {
     struct lowpan_reconstruct *recon = (struct lowpan_reconstruct *)elt;
-    if (recon->r_timeout != T_UNUSED)
+    /*if (recon->r_timeout != T_UNUSED)
       printf("recon src: 0x%x tag: 0x%x buf: %p recvd: %i/%i\n",
                  recon->r_source_key, recon->r_tag, recon->r_buf,
-                 recon->r_bytes_rcvd, recon->r_size);
+                 recon->r_bytes_rcvd, recon->r_size);*/
     switch (recon->r_timeout) {
     case T_ACTIVE:
       recon->r_timeout = T_ZOMBIE; break; // age existing receptions
@@ -261,9 +294,9 @@ void SENDINFO_DECR(struct send_info *si) {
     case T_ZOMBIE:
     case T_FAILED2:
       // deallocate the space for reconstruction
-      printf("timing out buffer: src: %i tag: %i\n", recon->r_source_key, recon->r_tag);
+      //printf("timing out buffer: src: %i tag: %i\n", recon->r_source_key, recon->r_tag);
       if (recon->r_buf != NULL) {
-        printf("ip_free(%p)\n", recon->r_buf);
+        //printf("ip_free(%p)\n", recon->r_buf);
         ip_free(recon->r_buf);
       }
       recon->r_timeout = T_UNUSED;
@@ -276,8 +309,8 @@ void SENDINFO_DECR(struct send_info *si) {
 #ifdef PRINTFUART_ENABLED
     bndrt_t *cur = (bndrt_t *)heap;
     while (((uint8_t *)cur)  - heap < IP_MALLOC_HEAP_SIZE) {
-      printf ("heap region start: %p length: %u used: %u\n",
-                  cur, (*cur & IP_MALLOC_LEN), (*cur & IP_MALLOC_INUSE) >> 15);
+      /*printf ("heap region start: %p length: %u used: %u\n",
+                  cur, (*cur & IP_MALLOC_LEN), (*cur & IP_MALLOC_INUSE) >> 15);*/
       cur = (bndrt_t *)(((uint8_t *)cur) + ((*cur) & IP_MALLOC_LEN));
     }
 #endif
@@ -331,6 +364,7 @@ void SENDINFO_DECR(struct send_info *si) {
   event message_t *Ieee154Receive.receive(message_t *msg,
                                           void *msg_payload,
                                           uint8_t len) {
+    /* Signaled by UniqueReceiveP. This function signals IPNeighborDiscoveryP.recv. */
     struct packed_lowmsg lowmsg;
     struct ieee154_frame_addr frame_address;
     uint8_t *buf = msg_payload;
@@ -342,8 +376,10 @@ void SENDINFO_DECR(struct send_info *si) {
     /* unpack the 802.15.4 address fields */
     ret = unpack_ieee154_hdr(&buf, &buflen, &frame_address);
 
-    if (ret < 0) {
+    ret_under_0 = ret < 0;
+    if (ret_under_0) {
       // If there isn't any more data this is a malformed 6LoWPAN packet
+      call EventFramework.trace_event(75);
       goto fail;
     }
 
@@ -351,11 +387,14 @@ void SENDINFO_DECR(struct send_info *si) {
     lowmsg.data = buf;
     lowmsg.len  = buflen;
     lowmsg.headers = getHeaderBitmap(&lowmsg);
-    if (lowmsg.headers == LOWMSG_NALP) {
+    headers_lowmsg_nalp = lowmsg.headers == LOWMSG_NALP;
+    if (headers_lowmsg_nalp) {
+      call EventFramework.trace_event(76);
       goto fail;
     }
 
-    if (hasFrag1Header(&lowmsg) || hasFragNHeader(&lowmsg)) {
+    hasFrag1_and_n_header = hasFrag1Header(&lowmsg) || hasFragNHeader(&lowmsg);
+    if (hasFrag1_and_n_header) {  // Not happening
       // start reassembly
       int rv;
       struct lowpan_reconstruct *recon;
@@ -364,7 +403,9 @@ void SENDINFO_DECR(struct send_info *si) {
       source_key = ieee154_hashaddr(&frame_address.ieee_src);
       getFragDgramTag(&lowmsg, &tag);
       recon = get_reconstruct(source_key, tag);
+
       if (!recon) {
+        call EventFramework.trace_event(77);
         goto fail;
       }
 
@@ -378,17 +419,24 @@ void SENDINFO_DECR(struct send_info *si) {
       if (hasFrag1Header(&lowmsg)) {
         // Fail if the buffer is already allocated. In that case we have already
         // received the Frag1 header.
-        if (recon->r_buf != NULL) goto fail;
+        if (recon->r_buf != NULL) {
+          call EventFramework.trace_event(78);
+          goto fail;
+        }
         rv = lowpan_recon_start(&frame_address, recon, buf, buflen);
       } else {
         // Fail if we try to reconstruct a packet without receiving the Frag1
         // header first.
-        if (recon->r_buf == NULL) goto fail;
+        if (recon->r_buf == NULL) {
+          call EventFramework.trace_event(79);
+          goto fail;
+        }
         rv = lowpan_recon_add(recon, buf, buflen);
       }
 
       if (rv < 0) {
         recon->r_timeout = T_FAILED1;
+        call EventFramework.trace_event(80);
         goto fail;
       } else {
         // printf("start recon buf: %p\n", recon->r_buf);
@@ -401,7 +449,7 @@ void SENDINFO_DECR(struct send_info *si) {
         deliver(recon);
       }
 
-    } else {
+    } else {  // Happening
       /* no fragmentation, just deliver it */
       int rv;
       struct lowpan_reconstruct recon;
@@ -417,10 +465,10 @@ void SENDINFO_DECR(struct send_info *si) {
         goto fail;
       }
 
-      if (recon.r_size == recon.r_bytes_rcvd) {
+      recon_size_cond = recon.r_size == recon.r_bytes_rcvd;
+      if (recon_size_cond) {
         deliver(&recon);
       } else {
-        // printf("ip_free(%p)\n", recon.r_buf);
         ip_free(recon.r_buf);
       }
     }
@@ -428,6 +476,7 @@ void SENDINFO_DECR(struct send_info *si) {
   fail:
     BLIP_STATS_INCR(stats.rx_drop);
   done:
+
     return msg;
   }
 
@@ -436,10 +485,20 @@ void SENDINFO_DECR(struct send_info *si) {
    * Send-side functionality
    */
   task void sendTask() {
+    /* Posted within IPDispatchP.send */
     struct send_entry *s_entry;
 
-    if (radioBusy || state != S_RUNNING) return;
-    if (call SendQueue.empty()) return;
+    busy_or_not_running = radioBusy || state != S_RUNNING;
+
+    if (busy_or_not_running) {
+      call EventFramework.trace_event(70);
+      return;
+    }
+
+    send_queue_empty = call SendQueue.empty();
+    if (send_queue_empty) {
+      return;
+    }
     // this does not dequeue
     s_entry = call SendQueue.head();
 
@@ -449,21 +508,25 @@ void SENDINFO_DECR(struct send_info *si) {
 #endif
 
     if (s_entry->info->failed) {
+      call EventFramework.trace_event(72);
       dbg("Drops", "drops: sendTask: dropping failed fragment\n");
       goto fail;
     }
 
-    if ((call Ieee154Send.send(s_entry->msg,
-                     call BarePacket.payloadLength(s_entry->msg))) != SUCCESS) {
+    failed_to_send = (call Ieee154Send.send(s_entry->msg, call BarePacket.payloadLength(s_entry->msg))) != SUCCESS;
+    if (failed_to_send) {
+      call EventFramework.trace_event(73);
       dbg("Drops", "drops: sendTask: send failed\n");
       goto fail;
     } else {
+    
       radioBusy = TRUE;
     }
 
+    //printf("End of sendTask\n");
     return;
   fail:
-    printf("SEND FAIL\n");
+    call EventFramework.trace_event(41);
     post sendTask();
     BLIP_STATS_INCR(stats.tx_drop);
 
@@ -474,8 +537,8 @@ void SENDINFO_DECR(struct send_info *si) {
     call FragPool.put(s_entry->msg);
     call SendEntryPool.put(s_entry);
     call SendQueue.dequeue();
-  }
 
+  }
 
   /*
    *  it will pack the message into the fragment pool and enqueue
@@ -491,6 +554,7 @@ void SENDINFO_DECR(struct send_info *si) {
   command error_t IPLower.send(struct ieee154_frame_addr *frame_addr,
                                struct ip6_packet *msg,
                                void  *data) {
+    /* Called within IPNeighborDiscoveryP.send */  
     struct lowpan_ctx ctx;
     struct send_info  *s_info;
     struct send_entry *s_entry;
@@ -498,8 +562,11 @@ void SENDINFO_DECR(struct send_info *si) {
 
     int frag_len = 1;
     error_t rc = SUCCESS;
-
+      
+    // This function takes exactly 44 clock ticks! Is called within UniqueReceiveP.SubReceive.receive
+    state_not_running = state != S_RUNNING;
     if (state != S_RUNNING) {
+      call EventFramework.trace_event(74);
       return EOFF;
     }
 
@@ -518,25 +585,30 @@ void SENDINFO_DECR(struct send_info *si) {
     ctx.offset = 0;
 
     s_info = getSendInfo();
+
     if (s_info == NULL) {
+      // This results in a packet dropped and not forwarded.
+      call EventFramework.trace_event(240);
       rc = ERETRY;
       goto cleanup_outer;
     }
     s_info->upper_data = data;
 
     while (frag_len > 0) {
+      
       s_entry  = call SendEntryPool.get();
       outgoing = call FragPool.get();
-
+      
       if (s_entry == NULL || outgoing == NULL) {
-        if (s_entry != NULL)
+        if (s_entry != NULL) {
           call SendEntryPool.put(s_entry);
-        if (outgoing != NULL)
+        }
+        if (outgoing != NULL) {
           call FragPool.put(outgoing);
+        }
         // this will cause any fragments we have already enqueued to
         // be dropped by the send task.
         s_info->failed = TRUE;
-        printf("drops: IP send: no fragments\n");
         rc = ERETRY;
         goto done;
       }
@@ -548,10 +620,10 @@ void SENDINFO_DECR(struct send_info *si) {
                                  frame_addr,
                                  &ctx);
       if (frag_len < 0) {
-        printf(" get frag error: %i\n", frag_len);
+        //printf(" get frag error: %i\n", frag_len);
       }
 
-      printf("fragment length: %i offset: %i\n", frag_len, ctx.offset);
+      //printf("fragment length: %i offset: %i\n", frag_len, ctx.offset);
       call BarePacket.setPayloadLength(outgoing, frag_len);
 
       if (frag_len <= 0) {
@@ -560,7 +632,14 @@ void SENDINFO_DECR(struct send_info *si) {
         goto done;
       }
 
-      if (call SendQueue.enqueue(s_entry) != SUCCESS) {
+      call EventFramework.trace_event(145);
+      /*if (the_main_packet && TOS_NODE_ID == 2) {
+      	the_main_packet = 0;
+      	call SendQueue.enqueue(s_entry);
+      	call SendQueue.enqueue(s_entry);
+      }*/
+      enqueue_not_success = call SendQueue.enqueue(s_entry) != SUCCESS;
+      if (enqueue_not_success) {
         BLIP_STATS_INCR(stats.encfail);
         s_info->failed = TRUE;
         // Because we were unable to add this fragment to the send queue we need
@@ -568,7 +647,7 @@ void SENDINFO_DECR(struct send_info *si) {
         // The s_info will be taken care of in done:
         call FragPool.put(outgoing);
         call SendEntryPool.put(s_entry);
-        printf("drops: IP send: enqueue failed\n");
+        //printf("drops: IP send: enqueue failed\n");
         goto done;
       }
 
@@ -592,6 +671,8 @@ void SENDINFO_DECR(struct send_info *si) {
   done:
     BLIP_STATS_INCR(stats.sent);
     SENDINFO_DECR(s_info);
+    // Task enqueuing
+    call EventFramework.trace_event(41);
     post sendTask();
   cleanup_outer:
     return rc;
@@ -599,6 +680,12 @@ void SENDINFO_DECR(struct send_info *si) {
 
   event void Ieee154Send.sendDone(message_t *msg, error_t error) {
     struct send_entry *s_entry = call SendQueue.head();
+    call EventFramework.trace_event(166);
+    if (TOS_NODE_ID == 1) {
+      udpechopsent = 1;  // Used by mote 1
+      nr_sending--;
+      //curseqno = (call CC2420PacketBody.getHeader(m_msg))->dsn;
+  	}
 
     radioBusy = FALSE;
 
@@ -613,8 +700,9 @@ void SENDINFO_DECR(struct send_info *si) {
 
  //acknowledgements are not required for multicast packets, useful for fragmentation
    if (!call PacketLink.wasDelivered(msg) && ack_required) {
-      printf("sendDone: was not delivered! (%i tries)\n",
-                 call PacketLink.getRetries(msg));
+      // Removed printout because we don't want printouts when tracing.
+      /*printf("sendDone: was not delivered! (%i tries)\n",
+                 call PacketLink.getRetries(msg));*/
       s_entry->info->failed = TRUE;
       signal IPLower.sendDone(s_entry->info);
 /*       if (s_entry->info->policy.dest[0] != 0xffff) */
@@ -633,7 +721,10 @@ void SENDINFO_DECR(struct send_info *si) {
     call SendEntryPool.put(s_entry);
     call SendQueue.dequeue();
 
-    post sendTask();
+    post sendTask();  // Why is this being posted here? Is it to send any potential packets that are waiting to be sent?
+    // Task enqueuing
+    call EventFramework.trace_event(41);
+    printf("e\n");
   }
 
   /*
@@ -646,12 +737,12 @@ void SENDINFO_DECR(struct send_info *si) {
     stats.sendentry= call SendEntryPool.size();
     stats.sndqueue = call SendQueue.size();
     stats.heapfree = ip_malloc_freespace();
-    printf("frag: %i sendinfo: %i sendentry: %i sendqueue: %i heap: %i\n",
+    /*printf("frag: %i sendinfo: %i sendentry: %i sendqueue: %i heap: %i\n",
                stats.fragpool,
                stats.sendinfo,
                stats.sendentry,
                stats.sndqueue,
-               stats.heapfree);
+               stats.heapfree);*/
 #endif
     memcpy(statistics, &stats, sizeof(ip_statistics_t));
 

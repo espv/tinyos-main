@@ -18,6 +18,7 @@ module IPProtocolsP {
     interface IP as SubIP;
     interface IPPacket;
     interface Leds;
+    interface EventFramework;
   }
 } implementation {
 
@@ -52,10 +53,11 @@ module IPProtocolsP {
   }
 
   command error_t IP.send[uint8_t nxt_hdr](struct ip6_packet *msg) {
+    error_t x;
     msg->ip6_hdr.ip6_vfc = IPV6_VERSION;
     msg->ip6_hdr.ip6_hops = 16;
-    //printf("IP Protocol send - nxt_hdr: %i iov_len: %i plen: %u\n",
-    //           nxt_hdr, iov_len(msg->ip6_data), ntohs(msg->ip6_hdr.ip6_plen));
+    /*printf("IP Protocol send - nxt_hdr: %i iov_len: %i plen: %u\n",
+               nxt_hdr, iov_len(msg->ip6_data), ntohs(msg->ip6_hdr.ip6_plen));
     {
       struct ip6_hdr *iph = (struct ip6_hdr*)&msg->ip6_hdr;
       printf("IPProtocolsP: Sending IPv6 Packet\n");
@@ -65,10 +67,11 @@ module IPProtocolsP {
       printf_in6addr(&iph->ip6_dst);
       printf("\n");
 
-    }
+    }*/
 
-
-    return call SubIP.send(msg);
+    x = call SubIP.send(msg);
+    return x;
+    //return call SubIP.send(msg);
   }
 
   default event void IP.recv[uint8_t nxt_hdr](struct ip6_hdr *iph,

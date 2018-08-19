@@ -100,4 +100,7 @@ implementation {
   components LedsC as Leds;
   SpiP.Leds -> Leds;
 
+  components EventFrameworkC;
+  SpiP.EventFramework -> EventFrameworkC;
+
 }

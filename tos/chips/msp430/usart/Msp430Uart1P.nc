@@ -50,7 +50,7 @@ configuration Msp430Uart1P {
 }
 
 implementation {
-
+  // In use by telosb
   components new Msp430UartP() as UartP;
   Resource = UartP.Resource;
   ResourceConfigure = UartP.ResourceConfigure;

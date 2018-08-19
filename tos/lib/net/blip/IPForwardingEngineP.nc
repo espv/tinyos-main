@@ -29,6 +29,7 @@ module IPForwardingEngineP {
     interface IPAddress;
     interface IPPacket;
     interface Pool<struct in6_iid>;
+    interface EventFramework;
 
 #ifdef PRINTFUART_ENABLED
     interface Timer<TMilli> as PrintTimer;
@@ -155,12 +156,17 @@ module IPForwardingEngineP {
                                                           int prefix_len_bits) {
     int i;
     for (i = 0; i < ROUTE_TABLE_SZ; i++) {
+      //printf("lookupRoute.prefixlen: %d, valid: %d\n", routing_table[i].prefixlen, routing_table[i].valid);
+      //printf_in6addr(prefix);printf("\n");
+      //printf_in6addr(&routing_table[i].prefix.s6_addr);printf("\n");
+      //printf_in6addr(&routing_table[i].prefix);printf("\n");
       if (routing_table[i].valid &&
           ((routing_table[i].prefixlen == 0) ||
           (memcmp(prefix, routing_table[i].prefix.s6_addr,
                   min(prefix_len_bits, routing_table[i].prefixlen) / 8) == 0 &&
             prefix_len_bits))) {
         /* match! */
+        //printf("routing_table[i].next_hop: ");printf_in6addr(&routing_table[i].next_hop);printf("\n");
         return &routing_table[i];
       }
     }
@@ -184,11 +190,14 @@ module IPForwardingEngineP {
   error_t do_send(uint8_t ifindex, struct in6_addr *next, struct ip6_packet *pkt) {
     error_t rc;
     struct in6_iid *iid = call Pool.get();
-    if (iid != NULL)
+    if (iid != NULL) {
       memcpy(iid->data, &next->s6_addr[8], 8);
+    }
     rc = call IPForward.send[ifindex](next, pkt, iid);
-    if (rc != SUCCESS && iid != NULL)
+    if (rc != SUCCESS && iid != NULL) {
       call Pool.put(iid);
+    }
+
     return rc;
   }
 
@@ -254,19 +263,27 @@ module IPForwardingEngineP {
 
   event void IPForward.recv[uint8_t ifindex](struct ip6_hdr *iph, void *payload,
                                              struct ip6_metadata *meta) {
+    /* Signaled by IPNeighborDiscoveryP.rec. Enqueues packets to be forwarded. */
     struct ip6_packet pkt;
     struct in6_addr *next_hop;
     size_t len = ntohs(iph->ip6_plen);
     uint8_t next_hop_ifindex;
     struct ip_iovec v = {
       .iov_next = NULL,
-      .iov_base = payload,
+      .iov_base = payload/*0x1ec8*/, // 0x1eca == events in EventFrameworkP
       .iov_len  = len,
     };
+
+    //int i;
+    /* This function takes in clock ticks 59-60-63. This function is called within the call
+     * of IPDispatch.receive.
+     */
+    //printf("IPForward.recv seq no: %d\n", ((uint8_t*)payload)[9]);
 
     /* signaled before *any* processing  */
     signal IPRaw.recv(iph, payload, len, meta);
 
+    //printf("addr: ");printf_in6addr(&iph->ip6_dst.s6_addr);printf("\n");
     if (call IPAddress.isLocalAddress(&iph->ip6_dst)) {
       /* local delivery */
       // printf("Local delivery\n");
@@ -275,10 +292,15 @@ module IPForwardingEngineP {
       /* forwarding */
       uint8_t nxt_hdr = IPV6_ROUTING;
       int header_off = call IPPacket.findHeader(&v, iph->ip6_nxt, &nxt_hdr);
+      // Currently this test will fail because ip6_hlim == 1. We simply ignore it.
       if (!(--iph->ip6_hlim)) {
+        //printf("RETURNING1\n");
+        // This happens when mote 2 forwards a packet to mote 3. There might be
+        // a way of getting ip6_hlim to be higher than 1, but currently this return
+        // gets ignored instead.
         /* ICMP may send time exceeded */
-        // call ForwardingEvents.drop(iph, payload, len, ROUTE_DROP_HLIM);
-        return;
+        //call ForwardingEvents.drop(iph, payload, len, ROUTE_DROP_HLIM);
+        //return;
       }
 
       if (header_off >= 0) {
@@ -312,25 +334,26 @@ module IPForwardingEngineP {
       if (!(signal ForwardingEvents.approve[next_hop_ifindex](&pkt, next_hop)))
         return;
 
-      printf("IPForwardingEngineP: Forwarding IPv6 Packet:\n");
-      printf(  "  source:   ");
-      printf_in6addr(&pkt.ip6_hdr.ip6_src);
-      printf("\n  dest:     ");
-      printf_in6addr(&pkt.ip6_hdr.ip6_dst);
-      printf("\n  next hop: ");
-      printf_in6addr(next_hop);
-      printf("\n");
+      //printf("IPForwardingEngineP: Forwarding IPv6 Packet:\n");
+      //printf(  "  source:   ");
+      //printf_in6addr(&pkt.ip6_hdr.ip6_src);
+      //printf("\n  dest:     ");
+      //printf_in6addr(&pkt.ip6_hdr.ip6_dst);
+      //printf("\n  next hop: ");
+      //printf_in6addr(next_hop);
+      //printf("\n");
 
       do_send(next_hop_ifindex, next_hop, &pkt);
     }
+
   }
 
   event void IPForward.sendDone[uint8_t ifindex](struct send_info *status) {
     struct in6_addr next;
     struct in6_iid *iid = (struct in6_iid *)status->upper_data;
+    // This function takes 8 clock ticks. Is called after the attemptSend function is called, even after ack.
     memset(next.s6_addr, 0, 16);
     next.s6_addr16[0] = htons(0xfe80);
-    //printf("sendDone: iface: %i key: %p\n", ifindex, iid);
 
     if (iid != NULL) {
       memcpy(&next.s6_addr[8], iid->data, 8);
@@ -344,27 +367,28 @@ module IPForwardingEngineP {
     int i, ctr=0;
     static char print_buf[44];
     char* buf;
-    printf("\n#    ");
+    //return;
+    /*printf("\n#    ");
     printf("destination                                ");
     printf("gateway                   ");
-    printf("iface\n");
+    printf("iface\n");*/
     for (i = 0; i < ROUTE_TABLE_SZ; i++) {
       if (routing_table[i].valid) {
         buf = print_buf;
 
-        printf("%-5i", ctr++);
+        //printf("%-5i", ctr++);
 
         buf += inet_ntop6(&routing_table[i].prefix, print_buf, 44) - 1;
         sprintf(buf, "/%i", routing_table[i].prefixlen);
-        printf("%-43s", print_buf);
+        //printf("%-43s", print_buf);
 
         inet_ntop6(&routing_table[i].next_hop, print_buf, 30);
-        printf("%-26s", print_buf);
+        //printf("%-26s", print_buf);
 
-        printf("%i\n", routing_table[i].ifindex);
+        //printf("%i\n", routing_table[i].ifindex);
       }
     }
-    printf("\n");
+    //printf("\n");
     //printfflush();
   }
 #endif

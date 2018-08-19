@@ -41,6 +41,7 @@
    
 generic module QueueC(typedef queue_t, uint8_t QUEUE_SIZE) {
   provides interface Queue<queue_t>;
+  uses interface EventFramework;
 }
 
 implementation {
@@ -88,7 +89,14 @@ implementation {
   
   command queue_t Queue.dequeue() {
     queue_t t = call Queue.head();
-    dbg("QueueC", "%s: size is %hhu\n", __FUNCTION__, size);
+    //if (TOS_NODE_ID == 2)
+      //printf("QueueC.dequeue: Size: %d, max size: %d\n", size, QUEUE_SIZE);
+    // THESE CHANGES DIDN'T FIX THAT SAME PACKETS ARE SENT MULTIPLE TIMES.
+    // EITHER THE SAME PACKETS ARE ENQUEUED MULTIPLE TIMES, OR THE ERROR
+    // OCCURS IN THE NEIGHBOURDISCOVERY FILE WHEN ACTUALLY SENDING.
+    //queue_t t = queue[0];
+    //size = 0;
+    //dbg("QueueC", "%s: size is %hhu\n", __FUNCTION__, size);
     if (!call Queue.empty()) {
       head++;
       if (head == QUEUE_SIZE) head = 0;
@@ -99,6 +107,8 @@ implementation {
   }
 
   command error_t Queue.enqueue(queue_t newVal) {
+    //call EventFramework.post_event(1, "SRV start", "QueueC.Queue.enqueue", "");
+    //printf("QueueC.Queue.enqueue before size: %d\n", size);
     if (call Queue.size() < call Queue.maxSize()) {
       dbg("QueueC", "%s: size is %hhu\n", __FUNCTION__, size);
       queue[tail] = newVal;
@@ -106,9 +116,13 @@ implementation {
       if (tail == QUEUE_SIZE) tail = 0;
       size++;
       printQueue();
+      //printf("QueueC.Queue.enqueue after size: %d\n", size);
+      //call EventFramework.post_event(1, "SRV stop1", "QueueC.Queue.enqueue", "");
       return SUCCESS;
     }
     else {
+      //printf("QueueC.Queue.enqueue after size: %d\n", size);
+      //call EventFramework.post_event(1, "SRV stop2", "QueueC.Queue.enqueue", "");
       return FAIL;
     }
   }

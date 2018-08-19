@@ -51,6 +51,7 @@ module CC2420CsmaP @safe() {
   uses interface CC2420PacketBody;
   uses interface State as SplitControlState;
 
+  uses interface EventFramework;
 }
 
 implementation {
@@ -120,12 +121,14 @@ implementation {
   }
 
   command error_t Send.send( message_t* p_msg, uint8_t len ) {
-    
+    /* Called within UniqueSendP.send */
     cc2420_header_t* header = call CC2420PacketBody.getHeader( p_msg );
     cc2420_metadata_t* metadata = call CC2420PacketBody.getMetadata( p_msg );
 
     atomic {
       if (!call SplitControlState.isState(S_STARTED)) {
+        // This is the end of the sendTask chain of events
+        call EventFramework.trace_event(2);
         return FAIL;
       }
       
@@ -153,7 +156,8 @@ implementation {
     //metadata->timesync = FALSE;
     metadata->timestamp = CC2420_INVALID_TIMESTAMP;
 
-    ccaOn = TRUE;
+    //ccaOn = TRUE;
+    ccaOn = FALSE; // Turn off cca
     signal RadioBackoff.requestCca(m_msg);
 
     call CC2420Transmit.send( m_msg, ccaOn );
@@ -204,6 +208,7 @@ implementation {
   /**************** Events ****************/
   async event void CC2420Transmit.sendDone( message_t* p_msg, error_t err ) {
     atomic sendErr = err;
+    //call EventFramework.trace_event(23); REQUIRES ATTENTION
     post sendDone_task();
   }
 
@@ -221,8 +226,14 @@ implementation {
   
   /***************** SubBackoff Events ****************/
   async event void SubBackoff.requestInitialBackoff(message_t *msg) {
+    /* The reason why packet forwarding can differ from 300 - 500 clock cycles
+     * is because of this backoff set to a random number. If we set the initial
+     * backoff to a specific magical number, the packet forwarding will be
+     * deterministic +-1 clock ticks.
+     */
     call SubBackoff.setInitialBackoff ( call Random.rand16() 
         % (0x1F * CC2420_BACKOFF_PERIOD) + CC2420_MIN_BACKOFF);
+    //call SubBackoff.setInitialBackoff(0);
         
     signal RadioBackoff.requestInitialBackoff(msg);
   }
@@ -243,6 +254,7 @@ implementation {
   /***************** Tasks ****************/
   task void sendDone_task() {
     error_t packetErr;
+    //call EventFramework.trace_event(45);  SRVQUEUE DEQUEUE occurring in scheduler
     atomic packetErr = sendErr;
     if(call SplitControlState.isState(S_STOPPING)) {
       shutdown();
@@ -252,6 +264,7 @@ implementation {
     }
     
     signal Send.sendDone( m_msg, packetErr );
+    //call EventFramework.trace_event(46);
   }
 
   task void startDone_task() {

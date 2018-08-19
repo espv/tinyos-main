@@ -52,7 +52,6 @@ implementation
 
   Msp430Timer[2] = Msp430TimerC.TimerA;
   Msp430TimerControl[2] = Msp430TimerC.ControlA2;
-  Msp430Compare[2] = Msp430TimerC.CompareA2; 
-  
+  Msp430Compare[2] = Msp430TimerC.CompareA2;
 }
 
