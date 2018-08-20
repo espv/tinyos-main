@@ -724,7 +724,6 @@ void SENDINFO_DECR(struct send_info *si) {
     post sendTask();  // Why is this being posted here? Is it to send any potential packets that are waiting to be sent?
     // Task enqueuing
     call EventFramework.trace_event(41);
-    printf("e\n");
   }
 
   /*
