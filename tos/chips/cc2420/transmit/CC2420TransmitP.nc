@@ -779,8 +779,8 @@ implementation {
     bool congestion = TRUE;
     int i;
     
-    if (TOS_NODE_ID == 2)
-    	m_state = S_CANCEL;
+    //if (TOS_NODE_ID == 2)
+    //	m_state = S_CANCEL;
 
     atomic {
       if (m_state == S_CANCEL) {

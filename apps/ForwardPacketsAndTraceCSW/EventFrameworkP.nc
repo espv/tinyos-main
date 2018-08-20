@@ -66,8 +66,8 @@ module EventFrameworkP {
 
   async event void MillisecondTimer.overflow() {}
 
-  #define REAL_MOTE_TRACING 1
-  #define INSTANT_TRACING 0
+  #define REAL_MOTE_TRACING 0
+  #define INSTANT_TRACING 1
   #define FLASH_TRACING 0
   
   void real_saving_event() {
